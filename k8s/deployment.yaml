@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: jenkins-k8s-demo
-        image: jenkins-k8s-demo:latest
+        image: YOUR_DOCKERHUB_USERNAME/jenkins-k8s-demo:latest
         ports:
         - containerPort: 3000
         env:
