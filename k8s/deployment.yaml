@@ -16,14 +16,9 @@ spec:
     spec:
       containers:
       - name: jenkins-k8s-demo
-        image: YOUR_DOCKERHUB_USERNAME/jenkins-k8s-demo:latest
+        image: nginx:alpine
         ports:
-        - containerPort: 3000
-        env:
-        - name: NODE_ENV
-          value: "production"
-        - name: PORT
-          value: "3000"
+        - containerPort: 80
         resources:
           requests:
             cpu: 100m
@@ -33,13 +28,13 @@ spec:
             memory: 256Mi
         livenessProbe:
           httpGet:
-            path: /health
-            port: 3000
+            path: /
+            port: 80
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /health
-            port: 3000
+            path: /
+            port: 80
           initialDelaySeconds: 5
           periodSeconds: 5

@@ -47,6 +47,7 @@ pipeline {
                     // Update deployment with new image
                     sh """
                         kubectl set image deployment/jenkins-k8s-demo jenkins-k8s-demo=${DOCKER_IMAGE}:${DOCKER_TAG}
+                        kubectl patch deployment jenkins-k8s-demo -p '{"spec":{"template":{"spec":{"containers":[{"name":"jenkins-k8s-demo","image":"${DOCKER_IMAGE}:${DOCKER_TAG}","ports":[{"containerPort":3000}],"livenessProbe":{"httpGet":{"path":"/health","port":3000}},"readinessProbe":{"httpGet":{"path":"/health","port":3000}}}]}}}}'
                         kubectl rollout status deployment/jenkins-k8s-demo
                     """
                 }
