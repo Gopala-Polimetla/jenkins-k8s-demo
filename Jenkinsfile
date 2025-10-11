@@ -46,11 +46,22 @@ pipeline {
             steps {
                 echo 'Checking Kubernetes cluster...'
                 script {
-                    sh """
-                        kubectl get nodes
-                        kubectl get deployments
-                        kubectl get services
-                    """
+                    // Option 1: Direct kubectl (if configured)
+                    try {
+                        sh """
+                            kubectl get nodes
+                            kubectl get deployments
+                            kubectl get services
+                        """
+                    } catch (Exception e) {
+                        echo "Direct kubectl failed, trying SSH approach..."
+                        // Option 2: SSH to master node
+                        sh """
+                            ssh -o StrictHostKeyChecking=no -p 5687 root@103.235.105.210 'kubectl get nodes'
+                            ssh -o StrictHostKeyChecking=no -p 5687 root@103.235.105.210 'kubectl get deployments'
+                            ssh -o StrictHostKeyChecking=no -p 5687 root@103.235.105.210 'kubectl get services'
+                        """
+                    }
                 }
             }
         }
@@ -59,24 +70,45 @@ pipeline {
             steps {
                 echo 'Deploying to Kubernetes...'
                 script {
-                    sh """
-                        echo "Current deployment status:"
-                        kubectl get deployment jenkins-k8s-demo || echo "Deployment not found"
-                        
-                        echo "Updating deployment configuration..."
-                        sed -i.bak 's|image: nginx:alpine|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|g' k8s/deployment.yaml
-                        sed -i.bak 's|containerPort: 80|containerPort: 3000|g' k8s/deployment.yaml
-                        sed -i.bak 's|port: 80|port: 3000|g' k8s/deployment.yaml
-                        sed -i.bak 's|targetPort: 80|targetPort: 3000|g' k8s/service.yaml
-                        sed -i.bak 's|path: /|path: /health|g' k8s/deployment.yaml
-                        sed -i.bak 's|port: 80|port: 3000|g' k8s/deployment.yaml
-                        
-                        echo "Applying updated configuration..."
-                        kubectl apply -f k8s/
-                        
-                        echo "Waiting for rollout..."
-                        kubectl rollout status deployment/jenkins-k8s-demo --timeout=300s
-                    """
+                    // Try direct kubectl first, fallback to SSH
+                    try {
+                        sh """
+                            echo "Current deployment status:"
+                            kubectl get deployment jenkins-k8s-demo || echo "Deployment not found"
+                            
+                            echo "Updating deployment configuration..."
+                            sed -i.bak 's|image: nginx:alpine|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|g' k8s/deployment.yaml
+                            sed -i.bak 's|containerPort: 80|containerPort: 3000|g' k8s/deployment.yaml
+                            sed -i.bak 's|port: 80|port: 3000|g' k8s/deployment.yaml
+                            sed -i.bak 's|targetPort: 80|targetPort: 3000|g' k8s/service.yaml
+                            sed -i.bak 's|path: /|path: /health|g' k8s/deployment.yaml
+                            sed -i.bak 's|port: 80|port: 3000|g' k8s/deployment.yaml
+                            
+                            echo "Applying updated configuration..."
+                            kubectl apply -f k8s/
+                            
+                            echo "Waiting for rollout..."
+                            kubectl rollout status deployment/jenkins-k8s-demo --timeout=300s
+                        """
+                    } catch (Exception e) {
+                        echo "Direct kubectl failed, using SSH approach..."
+                        sh """
+                            echo "Copying files to master node..."
+                            scp -P 5687 -o StrictHostKeyChecking=no -r k8s/ root@103.235.105.210:/tmp/jenkins-k8s-demo-k8s/
+                            
+                            echo "Deploying via SSH..."
+                            ssh -p 5687 -o StrictHostKeyChecking=no root@103.235.105.210 '
+                                cd /tmp/jenkins-k8s-demo-k8s/
+                                sed -i "s|image: nginx:alpine|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|g" deployment.yaml
+                                sed -i "s|containerPort: 80|containerPort: 3000|g" deployment.yaml
+                                sed -i "s|port: 80|port: 3000|g" deployment.yaml
+                                sed -i "s|targetPort: 80|targetPort: 3000|g" service.yaml
+                                sed -i "s|path: /|path: /health|g" deployment.yaml
+                                kubectl apply -f .
+                                kubectl rollout status deployment/jenkins-k8s-demo --timeout=300s
+                            '
+                        """
+                    }
                 }
             }
         }
